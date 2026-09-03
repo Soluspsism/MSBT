@@ -47,7 +47,7 @@ internal sealed unsafe partial class CombatParser : IDisposable
     }
 
     private readonly Plugin plugin;
-    private delegate void AddToScreenLogWithScreenLogKindDelegate(Character* target, Character* source, FlyTextKind logKind, byte option, byte actionKind, int actionId, int val1, int val2, int val3, int val4);
+    private delegate void AddToScreenLogWithScreenLogKindDelegate(Character* target, Character* source, FlyTextKind logKind, byte option, byte actionKind, uint actionId, int value1, int value2, int value3);
     private delegate void ProcessHotDotDelegate(StatusManager* statusManager, Character* target, uint statusId, int tickMode, uint value, uint sourceEntityId, int damageType);
     private readonly Hook<AddToScreenLogWithScreenLogKindDelegate>? screenLogHook;
     private readonly Hook<ProcessHotDotDelegate>? processHotDotHook;
@@ -374,4 +374,3 @@ internal sealed unsafe partial class CombatParser : IDisposable
         }
     }
 }
-
