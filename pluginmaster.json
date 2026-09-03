@@ -1,0 +1,19 @@
+[
+  {
+    "Author": "Soluspsism",
+    "Name": "MSBT",
+    "InternalName": "MSBT",
+    "AssemblyVersion": "1.0.0.0",
+    "Description": "AAA-tier custom scrolling combat text and WeakAuras-style trackers.",
+    "ApplicableVersion": "any",
+    "RepoUrl": "https://github.com/Soluspsism/MSBT",
+    "Tags": [ "combat", "ui", "text", "sct" ],
+    "DalamudApiLevel": 15,
+    "DownloadCount": 0,
+    "IconUrl": "",
+    "DownloadLinkInstall": "https://github.com/Soluspsism/MSBT/releases/download/v1.0.0.0/MSBT.zip",
+    "IsHide": false,
+    "IsTestingExclusive": false,
+    "LastUpdate": 1725350000
+  }
+]
