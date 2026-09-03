@@ -1,233 +1,59 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Diagnostics;
 using Dalamud.Hooking;
 using Dalamud.Game.Gui.FlyText;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
-using Dalamud.Bindings.ImGui;
+using Lumina.Excel;
+using LuminaAction = Lumina.Excel.Sheets.Action;
+using LuminaStatus = Lumina.Excel.Sheets.Status;
 
 namespace MSBT;
 
-public sealed unsafe class CombatParser : IDisposable
+internal sealed unsafe partial class CombatParser
 {
-    private readonly Plugin plugin;
-    private delegate void AddToScreenLogWithScreenLogKindDelegate(Character* target, Character* source, FlyTextKind logKind, byte option, byte actionKind, int actionId, int val1, int val2, int val3);
-    private readonly Hook<AddToScreenLogWithScreenLogKindDelegate>? hook;
-
-    private Dictionary<string, float> triggerCooldowns = new Dictionary<string, float>();
-    private float lastCritSoundTime = 0f;
-    private float lastAlertSoundTime = 0f;
-
-    private readonly Dictionary<uint, (string Name, uint IconId, int DmgType)> actionCache = new();
-    private readonly Dictionary<uint, (string Name, uint IconId)> statusCache = new();
-    private const int MaxCacheSize = 2000;
-
-    public CombatParser(Plugin plugin)
-    {
-        this.plugin = plugin;
-        try
-        {
-            nint address = Plugin.SigScanner.ScanText("E8 ?? ?? ?? ?? BF ?? ?? ?? ?? EB 39");
-            hook = Plugin.GameInteropProvider.HookFromAddress<AddToScreenLogWithScreenLogKindDelegate>(address, AddToScreenLogWithScreenLogKindDetour);
-            hook.Enable();
-        }
-        catch (Exception ex) { Plugin.Log.Error(ex, "Failed to hook AddToScreenLog"); }
-    }
-
-    public void Dispose()
-    {
-        hook?.Dispose();
-    }
-
-    private void ManageCacheSize()
-    {
-        if (actionCache.Count > MaxCacheSize) actionCache.Clear();
-        if (statusCache.Count > MaxCacheSize) statusCache.Clear();
-    }
-
-    public string GetSkillName(uint id)
-    {
-        if (statusCache.TryGetValue(id, out var sc)) return sc.Name;
-        if (actionCache.TryGetValue(id, out var ac)) return ac.Name;
-        try
-        {
-            var sheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Status>();
-            if (sheet != null)
-            {
-                var row = sheet.GetRow(id);
-                ManageCacheSize();
-                statusCache[id] = (row.Name.ToString(), row.Icon);
-                return row.Name.ToString();
-            }
-        }
-        catch { }
-        return $"Unknown ({id})";
-    }
-
-    public uint GetIconId(uint id)
-    {
-        if (statusCache.TryGetValue(id, out var sc)) return sc.IconId;
-        if (actionCache.TryGetValue(id, out var ac)) return ac.IconId;
-        try
-        {
-            var sheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Status>();
-            if (sheet != null)
-            {
-                var row = sheet.GetRow(id);
-                ManageCacheSize();
-                statusCache[id] = (row.Name.ToString(), row.Icon);
-                return row.Icon;
-            }
-        }
-        catch { }
-        return 0;
-    }
-
-    private string FormatSkillName(string rawName, DisplayChannel ch)
-    {
-        if (string.IsNullOrEmpty(rawName) || !ch.AbbreviateSkillNames) return rawName;
-        if (rawName.Length <= ch.MaxSkillNameLength) return rawName;
-
-        var words = rawName.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-        if (words.Length <= 1) return rawName.Substring(0, ch.MaxSkillNameLength) + "...";
-
-        string abbr = "";
-        for (int i = 0; i < words.Length - 1; i++)
-        {
-            if (words[i].Length > 0 && char.IsLetterOrDigit(words[i][0]))
-                abbr += words[i][0] + ". ";
-            else
-                abbr += words[i] + " ";
-        }
-        abbr += words.Last();
-
-        if (abbr.Length > ch.MaxSkillNameLength) return abbr.Substring(0, ch.MaxSkillNameLength) + "...";
-        return abbr;
-    }
-
-    public bool CheckConditions(List<TriggerCondition> conditions, Dalamud.Game.ClientState.Objects.Types.IBattleChara? player, Dalamud.Game.ClientState.Objects.Types.IBattleChara? target)
-    {
-        if (conditions == null || conditions.Count == 0) return true;
-
-        foreach (var cond in conditions)
-        {
-            if (cond.Type == ConditionType.None) continue;
-
-            if (cond.Type == ConditionType.PlayerHP)
-            {
-                if (player == null) return false;
-                float hpPct = ((float)player.CurrentHp / player.MaxHp) * 100f;
-                if (cond.Operator == ConditionOperator.LessThan && hpPct >= cond.Value) return false;
-                if (cond.Operator == ConditionOperator.GreaterThan && hpPct <= cond.Value) return false;
-                if (cond.Operator == ConditionOperator.Equal && Math.Abs(hpPct - cond.Value) > 0.1f) return false;
-            }
-            else if (cond.Type == ConditionType.TargetHP)
-            {
-                if (target == null) return false;
-                float hpPct = ((float)target.CurrentHp / target.MaxHp) * 100f;
-                if (cond.Operator == ConditionOperator.LessThan && hpPct >= cond.Value) return false;
-                if (cond.Operator == ConditionOperator.GreaterThan && hpPct <= cond.Value) return false;
-                if (cond.Operator == ConditionOperator.Equal && Math.Abs(hpPct - cond.Value) > 0.1f) return false;
-            }
-            else if (cond.Type == ConditionType.PlayerHasAura || cond.Type == ConditionType.PlayerMissingAura)
-            {
-                if (player == null) return false;
-                bool hasAura = player.StatusList.Any(s => s.StatusId == (uint)cond.Value);
-                if (cond.Type == ConditionType.PlayerHasAura && !hasAura) return false;
-                if (cond.Type == ConditionType.PlayerMissingAura && hasAura) return false;
-            }
-            else if (cond.Type == ConditionType.TargetHasAura || cond.Type == ConditionType.TargetMissingAura)
-            {
-                if (target == null) return false;
-                bool hasAura = target.StatusList.Any(s => s.StatusId == (uint)cond.Value);
-                if (cond.Type == ConditionType.TargetHasAura && !hasAura) return false;
-                if (cond.Type == ConditionType.TargetMissingAura && hasAura) return false;
-            }
-            else if (cond.Type == ConditionType.PlayerAuraStacks)
-            {
-                if (player == null) return false;
-                var aura = player.StatusList.FirstOrDefault(s => s.StatusId == cond.TargetStatusId);
-                int stacks = aura != null ? aura.Param : 0;
-
-                if (cond.Operator == ConditionOperator.LessThan && !(stacks < cond.Value)) return false;
-                if (cond.Operator == ConditionOperator.GreaterThan && !(stacks > cond.Value)) return false;
-                if (cond.Operator == ConditionOperator.Equal && !(stacks == cond.Value)) return false;
-            }
-            else if (cond.Type == ConditionType.TargetAuraStacks)
-            {
-                if (target == null) return false;
-                var aura = target.StatusList.FirstOrDefault(s => s.StatusId == cond.TargetStatusId);
-                int stacks = aura != null ? aura.Param : 0;
-
-                if (cond.Operator == ConditionOperator.LessThan && !(stacks < cond.Value)) return false;
-                if (cond.Operator == ConditionOperator.GreaterThan && !(stacks > cond.Value)) return false;
-                if (cond.Operator == ConditionOperator.Equal && !(stacks == cond.Value)) return false;
-            }
-        }
-        return true;
-    }
-
-    private void EnqueueSystemTrigger(string text)
-    {
-        foreach (var ch in plugin.Configuration.Channels)
-        {
-            if (!ch.Enabled || !ch.AcceptsSystemAlerts) continue;
-
-            float scale = ch.NormalScale;
-            float stackOffset = plugin.Renderer.GetSpawnOffsetAndBump(ch, scale, ch.Direction, false);
-
-            float tX = 0f; float tY = 0f;
-            if (ch.Direction == ScrollDirection.Left || ch.Direction == ScrollDirection.Right) tX = stackOffset;
-            else tY = stackOffset;
-
-            lock (plugin.CustomTexts)
-            {
-                var node = plugin.CustomTexts.FirstOrDefault(n => !n.IsActive);
-                if (node == null) { node = new CustomSCTNode(); plugin.CustomTexts.Add(node); }
-                node.Init(text ?? "", text ?? "", tY, tX, false, false, false, true, false, true, ch, 0, 0, uint.MaxValue, "", false, 0, 0, 0f, 0f, 0);
-            }
-
-            if (ch.AlertSound > 0)
-            {
-                float currentTime = (float)ImGui.GetTime();
-                if (currentTime - lastAlertSoundTime > 1.0f) { lastAlertSoundTime = currentTime; plugin.Renderer.PlayInGameSound(ch.AlertSound); }
-            }
-        }
-    }
-
-    private void AddToScreenLogWithScreenLogKindDetour(Character* target, Character* source, FlyTextKind logKind, byte option, byte actionKind, int actionId, int val1, int val2, int val3)
+    private void AddToScreenLogWithScreenLogKindDetour(Character* target, Character* source, FlyTextKind logKind, byte option, byte actionKind, int actionId, int val1, int val2, int val3, int val4)
     {
         try
         {
-            var localPlayer = (Character*)(Plugin.ObjectTable.LocalPlayer?.Address ?? nint.Zero);
+            var localPlayer = (Character*)(Service.ObjectTable.LocalPlayer?.Address ?? nint.Zero);
             if (localPlayer == null || target == null) goto OriginalCall;
 
-            string kindStr = logKind.ToString().ToLowerInvariant();
+            FlyTextTraits traits = GetFlyTextTraits(logKind);
 
-            bool isDamage = kindStr.Contains("damage") || kindStr.Contains("autoattack") || kindStr.Contains("dot");
-            bool isHeal = kindStr.Contains("healing") || kindStr.Contains("heal") || kindStr.Contains("drain") || kindStr.Contains("absorb");
-            bool isMp = kindStr.Contains("mp") || kindStr.Contains("cp") || kindStr.Contains("gp") || kindStr.Contains("ep") || kindStr.Contains("tp");
+            bool isDamage = (traits & FlyTextTraits.Damage) != 0;
+            bool isHeal = (traits & FlyTextTraits.Heal) != 0;
+            bool isMp = (traits & FlyTextTraits.Mp) != 0;
 
-            bool isStatus = kindStr.Contains("buff") || kindStr.Contains("debuff") || kindStr.Contains("fading") || kindStr.Contains("namedicon") || kindStr.Contains("status") || kindStr.Contains("aura");
-            bool isAction = kindStr.Contains("action");
-            bool isFading = kindStr.Contains("fading");
-            bool isTextOnly = isStatus || isAction;
+            bool isStatus = (traits & FlyTextTraits.Status) != 0;
+            bool isFading = (traits & FlyTextTraits.Fading) != 0;
+            bool isTextOnly = isStatus;
 
-            bool isCrit = kindStr.Contains("crit") || kindStr.Contains("cdh");
-            bool isDirectHit = kindStr.Contains("direct") || kindStr.Contains("dh") || kindStr.Contains("cdh");
-            bool isInvulnOrMiss = kindStr.Contains("invuln") || kindStr.Contains("evade") || kindStr.Contains("miss") || kindStr.Contains("resist") || kindStr.Contains("block") || kindStr.Contains("parry");
+            bool isCrit = (traits & FlyTextTraits.Crit) != 0;
+            bool isDirectHit = (traits & FlyTextTraits.DirectHit) != 0;
+            bool isInvulnOrMiss = (traits & FlyTextTraits.InvulnerableOrMiss) != 0;
 
             if (isHeal && isMp) isHeal = false;
 
-            bool isAutoAttackKind = kindStr.Contains("autoattack");
-            bool isDot = isAutoAttackKind && val2 > 0;
+            bool isAutoAttackKind = (traits & FlyTextTraits.AutoAttack) != 0;
+            bool isPeriodicDot = logKind == FlyTextKind.AutoAttackOrDot &&
+                                 option == 0 &&
+                                 actionKind == 0 &&
+                                 actionId == 0 &&
+                                 val1 > 0 &&
+                                 val2 == 0 &&
+                                 val3 is >= 0 and <= 3 &&
+                                 val4 == 0 &&
+                                 target == source;
+            HotDotContext? hotDot = ActiveHotDot;
+            bool hasHotDotContext = isPeriodicDot &&
+                                    hotDot is { TickMode: 3 } context &&
+                                    context.Target == target &&
+                                    context.Value == (uint)val1;
 
             int value = val1;
-            if (isDot)
-            {
-                value = val2;
-            }
-            else if (val1 == 0 && !isDamage && !isInvulnOrMiss)
+            if (val1 == 0 && !isDamage && !isInvulnOrMiss)
             {
                 value = val2;
                 if (value <= 0) value = val3;
@@ -247,26 +73,34 @@ public sealed unsafe class CombatParser : IDisposable
                 value = 0;
             }
 
-            float currentTime = (float)ImGui.GetTime();
-            var localPlayerSafe = Plugin.ObjectTable.LocalPlayer as Dalamud.Game.ClientState.Objects.Types.IBattleChara;
+            long currentTimestamp = Stopwatch.GetTimestamp();
+            var localPlayerSafe = Service.ObjectTable.LocalPlayer as Dalamud.Game.ClientState.Objects.Types.IBattleChara;
 
             if (localPlayerSafe != null && (source == localPlayer || target == localPlayer))
             {
                 if (plugin.Configuration.TriggerLowHp && localPlayerSafe.MaxHp > 0)
                 {
                     float hpPercent = ((float)localPlayerSafe.CurrentHp / localPlayerSafe.MaxHp) * 100f;
-                    if (hpPercent <= plugin.Configuration.LowHpThresholdPercent) { if (!triggerCooldowns.ContainsKey("LowHP") || (currentTime - triggerCooldowns["LowHP"]) > 5.0f) { triggerCooldowns["LowHP"] = currentTime; EnqueueSystemTrigger(plugin.Configuration.TriggerTextLowHp); } }
-                    else if (hpPercent > plugin.Configuration.LowHpThresholdPercent) { triggerCooldowns["LowHP"] = 0f; }
+                    if (hpPercent <= plugin.Configuration.LowHpThresholdPercent)
+                    {
+                        if (TryStartCooldown(ref lowHpTriggerTimestamp, currentTimestamp, TriggerCooldownTicks))
+                            EnqueueSystemTrigger(plugin.Configuration.TriggerTextLowHp);
+                    }
+                    else if (hpPercent > plugin.Configuration.LowHpThresholdPercent) lowHpTriggerTimestamp = 0;
                 }
 
                 if (plugin.Configuration.TriggerLowMp && localPlayerSafe.MaxMp > 0)
                 {
-                    if (localPlayerSafe.CurrentMp <= plugin.Configuration.LowMpThresholdValue) { if (!triggerCooldowns.ContainsKey("LowMP") || (currentTime - triggerCooldowns["LowMP"]) > 5.0f) { triggerCooldowns["LowMP"] = currentTime; EnqueueSystemTrigger(plugin.Configuration.TriggerTextLowMp); } }
-                    else if (localPlayerSafe.CurrentMp > plugin.Configuration.LowMpThresholdValue) { triggerCooldowns["LowMP"] = 0f; }
+                    if (localPlayerSafe.CurrentMp <= plugin.Configuration.LowMpThresholdValue)
+                    {
+                        if (TryStartCooldown(ref lowMpTriggerTimestamp, currentTimestamp, TriggerCooldownTicks))
+                            EnqueueSystemTrigger(plugin.Configuration.TriggerTextLowMp);
+                    }
+                    else if (localPlayerSafe.CurrentMp > plugin.Configuration.LowMpThresholdValue) lowMpTriggerTimestamp = 0;
                 }
             }
 
-            if (!isDamage && !isHeal && !isMp && !isStatus && !isAction) goto OriginalCall;
+            if (!isDamage && !isHeal && !isMp && !isStatus) goto OriginalCall;
             if (!isAbsorb && value <= 0 && (isDamage || isHeal || isMp)) goto OriginalCall;
 
             bool isMe = (target == localPlayer);
@@ -277,21 +111,28 @@ public sealed unsafe class CombatParser : IDisposable
                 if (source == localPlayer) isFromMe = true;
                 else if (source->GameObject.OwnerId == localPlayer->GameObject.EntityId) isFromMe = true;
             }
+            if (!isFromMe && hasHotDotContext && hotDot!.Value.SourceEntityId == localPlayer->GameObject.EntityId)
+                isFromMe = true;
 
-            bool isMyTarget = Plugin.TargetManager.Target != null && Plugin.TargetManager.Target.Address == (nint)target;
+            bool isMyTarget = Service.TargetManager.Target != null && Service.TargetManager.Target.Address == (nint)target;
 
             if (!isMe && !isFromMe && !isMyTarget) goto OriginalCall;
+            if (isPeriodicDot && !isMe && !isFromMe) goto OriginalCall;
 
             Dalamud.Game.ClientState.Objects.Types.IBattleChara? dalTarget = null;
             if (isMe) dalTarget = localPlayerSafe as Dalamud.Game.ClientState.Objects.Types.IBattleChara;
-            else if (isMyTarget) dalTarget = Plugin.TargetManager.Target as Dalamud.Game.ClientState.Objects.Types.IBattleChara;
+            else if (isMyTarget) dalTarget = Service.TargetManager.Target as Dalamud.Game.ClientState.Objects.Types.IBattleChara;
 
-            bool isPureAutoAttack = (actionId == 7 || actionId == 8) || (isAutoAttackKind && val2 == 0);
+            bool isPureAutoAttack = actionId is 7 or 8 || (isAutoAttackKind && !isPeriodicDot && val2 == 0);
 
             uint currentSkillId = 0;
-            if (!isPureAutoAttack)
+            if (hasHotDotContext)
             {
-                currentSkillId = (uint)(isStatus || isDot ? val1 : actionId);
+                currentSkillId = hotDot!.Value.StatusId;
+            }
+            else if (!isPureAutoAttack)
+            {
+                currentSkillId = (uint)(isStatus ? val1 : actionId);
             }
 
             if (currentSkillId > 0 && plugin.Configuration.BlacklistedSkillIds.Contains(currentSkillId)) goto OriginalCall;
@@ -309,14 +150,13 @@ public sealed unsafe class CombatParser : IDisposable
 
             if (!isPureAutoAttack && currentSkillId > 0)
             {
-                if (isStatus || isDot)
+                if (isStatus || hasHotDotContext)
                 {
                     if (statusCache.TryGetValue(currentSkillId, out var cached)) { skillName = cached.Name; iconId = cached.IconId; }
                     else
                     {
                         try
                         {
-                            var statusSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Status>();
                             if (statusSheet != null)
                             {
                                 var row = statusSheet.GetRow(currentSkillId); skillName = row.Name.ToString(); iconId = row.Icon;
@@ -339,7 +179,6 @@ public sealed unsafe class CombatParser : IDisposable
                     {
                         try
                         {
-                            var actionSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Action>();
                             if (actionSheet != null)
                             {
                                 var row = actionSheet.GetRow(currentSkillId); skillName = row.Name.ToString(); iconId = row.Icon;
@@ -369,7 +208,8 @@ public sealed unsafe class CombatParser : IDisposable
             int finalDmgType = 1;
             if (isDamage)
             {
-                if (option == 2) finalDmgType = 2;
+                if (isPeriodicDot) finalDmgType = Math.Max(1, val3);
+                else if (option == 2) finalDmgType = 2;
                 else if (option == 3 || option == 4) finalDmgType = 3;
                 else if (cachedDmgType > 1) finalDmgType = cachedDmgType;
             }
@@ -383,13 +223,15 @@ public sealed unsafe class CombatParser : IDisposable
                 }
             }
 
-            uint mergeId = isPureAutoAttack ? uint.MaxValue : currentSkillId;
+            uint mergeId = isPureAutoAttack
+                ? uint.MaxValue
+                : isPeriodicDot && currentSkillId == 0
+                    ? uint.MaxValue - 1
+                    : currentSkillId;
             string rawSkillName = skillName ?? "";
 
             if (plugin.Configuration.DebugShowIds && currentSkillId > 0)
                 rawSkillName = string.IsNullOrEmpty(rawSkillName) ? $"[ID:{currentSkillId}]" : $"[ID:{currentSkillId}] {rawSkillName}";
-
-            var activeTriggers = plugin.Configuration.AuraTriggers.Where(t => t.Enabled && t.StatusId == currentSkillId).ToList();
 
             foreach (var ch in plugin.Configuration.Channels)
             {
@@ -402,10 +244,10 @@ public sealed unsafe class CombatParser : IDisposable
 
                 if (currentSkillId > 0 && isStatus)
                 {
-                    var myTrigger = activeTriggers.FirstOrDefault(t => t.TargetChannels.Contains(ch.Name) || t.TargetChannelName == ch.Name);
+                    var myTrigger = FindActiveTrigger(currentSkillId, ch);
                     if (myTrigger != null)
                     {
-                        Dalamud.Game.ClientState.Objects.Types.IBattleChara? tTarget = Plugin.TargetManager.Target as Dalamud.Game.ClientState.Objects.Types.IBattleChara;
+                        Dalamud.Game.ClientState.Objects.Types.IBattleChara? tTarget = Service.TargetManager.Target as Dalamud.Game.ClientState.Objects.Types.IBattleChara;
                         if (CheckConditions(myTrigger.Conditions, localPlayerSafe, tTarget))
                         {
                             if (myTrigger.OnlyCastByMe && !isFromMe) { }
@@ -448,10 +290,9 @@ public sealed unsafe class CombatParser : IDisposable
 
                 if (ch.Mode == ChannelMode.Tracker || ch.Mode == ChannelMode.Overlay)
                 {
-                    lock (plugin.CustomTexts)
+                    lock (plugin.TextNodesGate)
                     {
-                        var existingTracker = plugin.CustomTexts.FirstOrDefault(x =>
-                            x.IsActive && x.Channel == ch && x.StatusId == currentSkillId && x.TargetObjectId == target->GameObject.EntityId);
+                        var existingTracker = FindTrackerNode(ch, currentSkillId, target->GameObject.EntityId);
 
                         if (existingTracker != null)
                         {
@@ -466,11 +307,9 @@ public sealed unsafe class CombatParser : IDisposable
 
                 if (plugin.Configuration.EnableThrottling && !isTextOnly && !isAlertEvent && !isAbsorb && ch.Mode == ChannelMode.Scrolling)
                 {
-                    lock (plugin.CustomTexts)
+                    lock (plugin.TextNodesGate)
                     {
-                        var existingNode = plugin.CustomTexts.FirstOrDefault(x =>
-                            x.IsActive && x.Channel == ch && x.MergeId == mergeId && x.IsHeal == isHeal && x.IsMp == isMp && x.IsCrit == finalIsCrit && x.IsBigHit == isBigHit && x.Timer < plugin.Configuration.ThrottleTimeWindow
-                        );
+                        var existingNode = FindMergeNode(ch, mergeId, isHeal, isMp, finalIsCrit, isBigHit);
 
                         if (existingNode != null)
                         {
@@ -567,34 +406,29 @@ public sealed unsafe class CombatParser : IDisposable
                 if (isAlertEvent)
                 {
                     int finalAlertSound = customSound > 0 ? customSound : ch.AlertSound;
-                    if (finalAlertSound > 0 && currentTime - lastAlertSoundTime > 1.0f)
+                    if (finalAlertSound > 0 && TryStartCooldown(ref lastAlertSoundTimestamp, currentTimestamp, AlertSoundCooldownTicks))
                     {
-                        lastAlertSoundTime = currentTime;
                         plugin.Renderer.PlayInGameSound(finalAlertSound);
                     }
                 }
                 else if (finalIsCrit && ch.CritSound > 0)
                 {
-                    if (currentTime - lastCritSoundTime > 0.5f) { lastCritSoundTime = currentTime; plugin.Renderer.PlayInGameSound(ch.CritSound); }
+                    if (TryStartCooldown(ref lastCritSoundTimestamp, currentTimestamp, CritSoundCooldownTicks))
+                        plugin.Renderer.PlayInGameSound(ch.CritSound);
                 }
 
-                lock (plugin.CustomTexts)
+                lock (plugin.TextNodesGate)
                 {
                     bool treatAsCritStream = finalIsCrit || (isBigHit && ch.BigHitActsAsCrit);
                     bool isCritStream = treatAsCritStream && ch.CritBehavior != 0 && !isAlertEvent && !isIncStatusEvent && !isOutStatusEvent;
 
-                    float stackOffset = plugin.Renderer.GetSpawnOffsetAndBump(ch, scale, ch.Direction, isCritStream);
+                    float stackOffset = plugin.Renderer.GetSpawnOffsetAndBump(ch, scale, isCritStream);
 
                     bool needsDurationCheck = false;
                     if (isStatus && !isFading && currentSkillId > 0 && ch.ShowStatusDuration && statusDuration == 0f)
                         needsDurationCheck = true;
 
-                    var node = plugin.CustomTexts.FirstOrDefault(n => !n.IsActive);
-                    if (node == null)
-                    {
-                        node = new CustomSCTNode();
-                        plugin.CustomTexts.Add(node);
-                    }
+                    var node = plugin.AcquireTextNode();
 
                     finalDamageText ??= "";
                     baseDamageText ??= "";
@@ -610,9 +444,10 @@ public sealed unsafe class CombatParser : IDisposable
             }
             return;
         }
-        catch (Exception ex) { Plugin.Log.Error(ex, "Error in Detour"); }
+        catch (Exception ex) { Service.Log.Error(ex, "Error in Detour"); }
 
     OriginalCall:
-        hook!.Original(target, source, logKind, option, actionKind, actionId, val1, val2, val3);
+        screenLogHook!.Original(target, source, logKind, option, actionKind, actionId, val1, val2, val3, val4);
     }
 }
+

@@ -2,7 +2,7 @@ using System.Numerics;
 
 namespace MSBT;
 
-public class CustomSCTNode
+internal sealed class CustomSCTNode
 {
     public static ulong GlobalSpawnCounter = 0;
     public ulong SpawnId = 0;
@@ -49,37 +49,46 @@ public class CustomSCTNode
         DisplayChannel channel, uint iconId, int baseValue, uint mergeId, string skillName,
         bool requiresDurCheck, uint statusId, uint targetObjId, float maxDur, float remTime, int dmgType)
     {
-        this.SpawnId = ++GlobalSpawnCounter;
-        this.IsActive = true;
-        this.IsFirstFrameTracker = true;
+        SpawnId = ++GlobalSpawnCounter;
+        IsActive = true;
+        IsFirstFrameTracker = true;
 
-        this.Text = text;
-        this.BaseText = baseText;
-        this.Timer = 0f;
-        this.DistanceTraveled = 0f;
+        Text = text;
+        BaseText = baseText;
+        Timer = 0f;
+        DistanceTraveled = 0f;
 
-        this.TargetYOffset = targetY;
-        this.TargetXOffset = targetX;
+        TargetYOffset = targetY;
+        TargetXOffset = targetX;
 
-        this.IsCrit = isCrit;
-        this.IsDirectHit = isDirectHit;
-        this.IsBigHit = false;
-        this.IsHeal = isHeal;
-        this.IsTextOnly = isTextOnly;
-        this.IsMp = isMp;
-        this.IsFading = false;
-        this.IsAlert = isAlert;
-        this.Channel = channel;
-        this.IconId = iconId;
-        this.BaseValue = baseValue;
-        this.Hits = 1;
-        this.MergeId = mergeId;
-        this.SkillName = skillName;
-        this.RequiresDurationCheck = requiresDurCheck;
-        this.StatusId = statusId;
-        this.TargetObjectId = targetObjId;
-        this.MaxDuration = maxDur;
-        this.RemainingTime = remTime;
-        this.DmgType = dmgType;
+        IsCrit = isCrit;
+        IsDirectHit = isDirectHit;
+        IsBigHit = false;
+        IsHeal = isHeal;
+        IsTextOnly = isTextOnly;
+        IsMp = isMp;
+        IsFading = false;
+        IsAlert = isAlert;
+        Channel = channel;
+        IconId = iconId;
+        BaseValue = baseValue;
+        Hits = 1;
+        MergeId = mergeId;
+        SkillName = skillName;
+        RequiresDurationCheck = requiresDurCheck;
+        StatusId = statusId;
+        TargetObjectId = targetObjId;
+        MaxDuration = maxDur;
+        RemainingTime = remTime;
+        DmgType = dmgType;
+    }
+
+    public void Reset()
+    {
+        IsActive = false;
+        Text = string.Empty;
+        BaseText = string.Empty;
+        SkillName = string.Empty;
+        Channel = null!;
     }
 }
