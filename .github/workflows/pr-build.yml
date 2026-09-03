@@ -1,16 +1,15 @@
-name: Sample PR Builder for SamplePlugin
+name: Build MSBT
 
 on:
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
+  push:
+    branches: [ main ]
 
 jobs:
 
   build:
     runs-on: windows-2022
-
-    env:
-      Solution_Name: SamplePlugin
 
     steps:
     - name: Checkout
@@ -19,7 +18,7 @@ jobs:
     - name: Install .NET
       uses: actions/setup-dotnet@v5
       with:
-        dotnet-version: 9.0.x
+        dotnet-version: 10.0.x
 
     - name: Download Dalamud
       run: |
@@ -27,13 +26,13 @@ jobs:
         Expand-Archive -Force latest.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
 
     - name: Build with dotnet
-      run: dotnet build --configuration Release
+      run: dotnet build .\MSBT\MSBT.csproj --configuration Release
 
     - name: Store artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: SamplePlugin
-        path: .\SamplePlugin\bin\x64\Release\SamplePlugin\*
+        name: MSBT
+        path: .\MSBT\bin\Release\MSBT\*
         if-no-files-found: error
         retention-days: 1
 

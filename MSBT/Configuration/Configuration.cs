@@ -1,9 +1,7 @@
 using Dalamud.Configuration;
-using Dalamud.Plugin;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Numerics;
 using System.Text;
 
@@ -12,6 +10,7 @@ namespace MSBT;
 public enum ScrollDirection { Up, Down, Left, Right, Static, Pop, Fade }
 public enum NumberFormatType { None, Space, Comma, Smart }
 public enum TextAlignment { Left, Center, Right }
+public enum TextEffectType { None, Shadow, Outline }
 
 public enum ChannelMode { Scrolling, Tracker, Overlay }
 public enum TrackerStyle { Text, IconOnly, IconDial, ProgressBar }
@@ -71,7 +70,11 @@ public class DisplayChannel
     public float IconScale { get; set; } = 1.0f;
     public float TrackerTimerScale { get; set; } = 0.8f;
 
-    public string FontFileName { get; set; } = "";
+    public string FontKey { get; set; } = "";
+    public float FontSize { get; set; } = 0f;
+
+    [JsonProperty("FontFileName")]
+    private string LegacyFontFileName { set { if (string.IsNullOrWhiteSpace(FontKey)) FontKey = value ?? ""; } }
     public TextAlignment Alignment { get; set; } = TextAlignment.Center;
 
     public ScrollDirection Direction { get; set; } = ScrollDirection.Up;
@@ -123,13 +126,21 @@ public class DisplayChannel
 [Serializable]
 public class Configuration : IPluginConfiguration
 {
-    public int Version { get; set; } = 1;
+    public int Version { get; set; } = 3;
 
     public List<DisplayChannel> Channels { get; set; } = new List<DisplayChannel>();
 
-    public bool EnableOutline { get; set; } = true;
+    public TextEffectType TextEffect { get; set; } = TextEffectType.Outline;
+    public float TextEffectSize { get; set; } = 2f;
     public NumberFormatType FormatType { get; set; } = NumberFormatType.Smart;
-    public string FontFileName { get; set; } = "";
+    public string FontKey { get; set; } = "";
+    public float FontSize { get; set; } = 36f;
+
+    [JsonProperty("EnableOutline")]
+    private bool LegacyEnableOutline { set => TextEffect = value ? TextEffectType.Outline : TextEffectType.Shadow; }
+
+    [JsonProperty("FontFileName")]
+    private string LegacyFontFileName { set { if (string.IsNullOrWhiteSpace(FontKey)) FontKey = value ?? ""; } }
 
     public bool EnableThrottling { get; set; } = true;
     public float ThrottleTimeWindow { get; set; } = 0.5f;
@@ -167,35 +178,54 @@ public class Configuration : IPluginConfiguration
     public Dictionary<uint, string> ClassPresets { get; set; } = new Dictionary<uint, string>();
     public bool AutoSwitchPresets { get; set; } = false;
 
-    [JsonIgnore]
-    [NonSerialized]
-    private IDalamudPluginInterface? pluginInterface;
-
-    public void Initialize(IDalamudPluginInterface pluginInterface)
+    public void EnsureInitialized(Vector2 viewportSize)
     {
-        this.pluginInterface = pluginInterface;
+        Version = 3;
 
-        if (this.Channels.Count == 0)
+        if (Channels.Count == 0)
         {
-            this.Channels.Add(new DisplayChannel { Name = "Outgoing Damage", AcceptsOutgoingDamage = true, X = 900, Y = 500, Direction = ScrollDirection.Up });
-            this.Channels.Add(new DisplayChannel { Name = "Incoming & Healing", AcceptsIncomingDamage = true, AcceptsHeals = true, AcceptsMp = true, X = 700, Y = 500, Direction = ScrollDirection.Down, CritOffsetX = -150f });
-            this.Channels.Add(new DisplayChannel { Name = "Statuses", AcceptsStatuses = true, X = 800, Y = 400, Direction = ScrollDirection.Static, CritBehavior = 0 });
-            this.Channels.Add(new DisplayChannel { Name = "Alerts & Triggers", AcceptsSystemAlerts = true, X = 960, Y = 300, Direction = ScrollDirection.Static, NormalScale = 1.5f, CritScale = 1.5f, CritBehavior = 0, ShowStatusPrefixes = true });
-            this.Channels.Add(new DisplayChannel { Name = "Debuff Tracker", Mode = ChannelMode.Tracker, TrackerStyle = TrackerStyle.IconDial, AcceptsOutgoingStatuses = true, CurrentTargetOnly = true, X = 1100, Y = 500, ShowStatusDuration = true, Direction = ScrollDirection.Right });
-            this.Channels.Add(new DisplayChannel { Name = "Graphical Overlay", Mode = ChannelMode.Overlay, X = 960, Y = 800, NormalScale = 2.0f, IconScale = 1.5f, Direction = ScrollDirection.Static });
-            Save();
+            float width = viewportSize.X > 0 ? viewportSize.X : 1920f;
+            float height = viewportSize.Y > 0 ? viewportSize.Y : 1080f;
+            Vector2 Position(float referenceX, float referenceY) => new(referenceX / 2560f * width, referenceY / 1440f * height);
+
+            Vector2 outgoing = Position(1580f, 720f);
+            Vector2 incoming = Position(980f, 720f);
+            Vector2 statuses = Position(980f, 520f);
+            Vector2 alerts = Position(1280f, 470f);
+            Vector2 tracker = Position(1580f, 920f);
+            Vector2 overlay = Position(1280f, 820f);
+
+            Channels.Add(new DisplayChannel { Name = "Outgoing Damage", AcceptsOutgoingDamage = true, X = outgoing.X, Y = outgoing.Y, Direction = ScrollDirection.Up });
+            Channels.Add(new DisplayChannel { Name = "Incoming & Healing", AcceptsIncomingDamage = true, AcceptsHeals = true, AcceptsMp = true, X = incoming.X, Y = incoming.Y, Direction = ScrollDirection.Down, CritOffsetX = -150f });
+            Channels.Add(new DisplayChannel { Name = "Statuses", AcceptsStatuses = true, X = statuses.X, Y = statuses.Y, Direction = ScrollDirection.Static, CritBehavior = 0 });
+            Channels.Add(new DisplayChannel { Name = "Alerts & Triggers", AcceptsSystemAlerts = true, X = alerts.X, Y = alerts.Y, Direction = ScrollDirection.Static, NormalScale = 1.5f, CritScale = 1.5f, CritBehavior = 0, ShowStatusPrefixes = true });
+            Channels.Add(new DisplayChannel { Name = "Debuff Tracker", Mode = ChannelMode.Tracker, TrackerStyle = TrackerStyle.IconDial, AcceptsOutgoingStatuses = true, CurrentTargetOnly = true, X = tracker.X, Y = tracker.Y, ShowStatusDuration = true, Direction = ScrollDirection.Right });
+            Channels.Add(new DisplayChannel { Name = "Graphical Overlay", Mode = ChannelMode.Overlay, X = overlay.X, Y = overlay.Y, NormalScale = 2.0f, IconScale = 1.5f, Direction = ScrollDirection.Static });
         }
     }
 
-    public void Save() => this.pluginInterface!.SavePluginConfig(this);
+    public void Save() => ConfigRepository.Save(this);
 
     public string ExportToBase64()
     {
-        try { var clone = (Configuration)this.MemberwiseClone(); clone.SavedPresets = new Dictionary<string, string>(); clone.ClassPresets = new Dictionary<uint, string>(); string json = JsonConvert.SerializeObject(clone, Formatting.None); return Convert.ToBase64String(Encoding.UTF8.GetBytes(json)); } catch { return ""; }
+        try { var clone = (Configuration)MemberwiseClone(); clone.SavedPresets = new Dictionary<string, string>(); clone.ClassPresets = new Dictionary<uint, string>(); string json = JsonConvert.SerializeObject(clone, Formatting.None); return Convert.ToBase64String(Encoding.UTF8.GetBytes(json)); } catch { return ""; }
     }
 
-    public void ImportFromBase64(string base64)
+    public bool ImportFromBase64(string base64)
     {
-        try { var backupPresets = new Dictionary<string, string>(this.SavedPresets ?? new()); var backupClasses = new Dictionary<uint, string>(this.ClassPresets ?? new()); string json = Encoding.UTF8.GetString(Convert.FromBase64String(base64)); JsonConvert.PopulateObject(json, this); this.SavedPresets = backupPresets; this.ClassPresets = backupClasses; Save(); } catch { }
+        try
+        {
+            var backupPresets = new Dictionary<string, string>(SavedPresets ?? new());
+            var backupClasses = new Dictionary<uint, string>(ClassPresets ?? new());
+            string json = Encoding.UTF8.GetString(Convert.FromBase64String(base64));
+            JsonConvert.PopulateObject(json, this);
+            SavedPresets = backupPresets;
+            ClassPresets = backupClasses;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

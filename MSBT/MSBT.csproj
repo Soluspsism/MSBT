@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0-windows</TargetFramework>
+        <Version>1.0.0.0</Version>
+        <DebugType>portable</DebugType>
+        <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
+        <IsPackable>false</IsPackable>
+        <Deterministic>true</Deterministic>
+        <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+        <PathMap>$(MSBuildProjectDirectory)=MSBT</PathMap>
+        <Configurations>Debug;Release;Any</Configurations>
+        <Platforms>x64;AnyCPU</Platforms>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <Author>Soluspsism</Author>
+        <Name>MSBT</Name>
+        <InternalName>MSBT</InternalName>
+        <Punchline>Flexible scrolling battle text and alerts.</Punchline>
+        <Description>Scrolling battle text plugin with custom zones and triggers.</Description>
+        <RepoUrl>https://github.com/Soluspsism/MSBT</RepoUrl>
+        <Tags>ui;combat;msbt;scrolling text</Tags>
+        <AcceptsFeedback>true</AcceptsFeedback>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="Fonts\defused.ttf" />
+    </ItemGroup>
+
+</Project>
