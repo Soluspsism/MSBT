@@ -3,7 +3,7 @@
     "Author": "Soluspsism",
     "Name": "MSBT",
     "InternalName": "MSBT",
-    "AssemblyVersion": "0.0.0.1",
+    "AssemblyVersion": "1.0.0.0",
     "Description": "AAA-tier custom scrolling combat text and WeakAuras-style trackers.",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/Soluspsism/MSBT",
