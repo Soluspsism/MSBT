@@ -144,8 +144,9 @@ internal sealed partial class Renderer
                         float currentBump = 0f;
                         if (lane != 0)
                         {
-                            node.DistanceTraveled += (node.TargetYOffset - node.DistanceTraveled) * globalLerpFactor;
-                            currentBump = node.DistanceTraveled;
+                            float queueTravel = Math.Max(0f, -node.TargetXOffset);
+                            node.DistanceTraveled += (queueTravel - node.DistanceTraveled) * globalLerpFactor;
+                            currentBump = node.TargetXOffset + node.DistanceTraveled;
                         }
 
                         float currentX = ch.X;

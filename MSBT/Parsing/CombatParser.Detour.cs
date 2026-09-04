@@ -421,7 +421,7 @@ internal sealed unsafe partial class CombatParser
                     bool treatAsCritStream = finalIsCrit || (isBigHit && ch.BigHitActsAsCrit);
                     bool isCritStream = treatAsCritStream && ch.CritBehavior != 0 && !isAlertEvent && !isIncStatusEvent && !isOutStatusEvent;
 
-                    float stackOffset = plugin.Renderer.GetSpawnOffsetAndBump(ch, scale, isCritStream);
+                    float stackOffset = plugin.Renderer.GetSpawnOffset(ch, scale, isCritStream);
 
                     bool needsDurationCheck = false;
                     if (isStatus && !isFading && currentSkillId > 0 && ch.ShowStatusDuration && statusDuration == 0f)
@@ -433,7 +433,7 @@ internal sealed unsafe partial class CombatParser
                     baseDamageText ??= "";
                     formattedName ??= "";
 
-                    node.Init(finalDamageText, baseDamageText, 0f, stackOffset, finalIsCrit, finalIsDH, isHeal,
+                    node.Init(finalDamageText, baseDamageText, stackOffset, finalIsCrit, finalIsDH, isHeal,
                               isTextOnly, isMpEvent, isAlertEvent, ch, finalIcon, value, mergeId, formattedName,
                               needsDurationCheck, currentSkillId, target->GameObject.EntityId, 0f, 0f, finalDmgType);
 

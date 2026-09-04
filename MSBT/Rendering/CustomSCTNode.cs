@@ -16,7 +16,6 @@ internal sealed class CustomSCTNode
 
     public float DistanceTraveled = 0f;
 
-    public float TargetYOffset;
     public float TargetXOffset;
 
     public bool IsCrit;
@@ -44,7 +43,7 @@ internal sealed class CustomSCTNode
     public float RemainingTime = 0f;
     public int DmgType = 0;
 
-    public void Init(string text, string baseText, float targetY, float targetX,
+    public void Init(string text, string baseText, float targetX,
         bool isCrit, bool isDirectHit, bool isHeal, bool isTextOnly, bool isMp, bool isAlert,
         DisplayChannel channel, uint iconId, int baseValue, uint mergeId, string skillName,
         bool requiresDurCheck, uint statusId, uint targetObjId, float maxDur, float remTime, int dmgType)
@@ -58,7 +57,6 @@ internal sealed class CustomSCTNode
         Timer = 0f;
         DistanceTraveled = 0f;
 
-        TargetYOffset = targetY;
         TargetXOffset = targetX;
 
         IsCrit = isCrit;
