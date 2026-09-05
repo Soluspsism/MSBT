@@ -1,0 +1,84 @@
+name: Build and publish release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-plugin-manifest
+  cancel-in-progress: false
+
+jobs:
+  publish-release:
+    runs-on: windows-2022
+
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Check out the released source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          path: .release-source
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download Dalamud
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/latest.zip -OutFile latest.zip
+          Expand-Archive -Force latest.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
+
+      - name: Build the release ZIP
+        shell: pwsh
+        run: >-
+          ./.github/scripts/build-release.ps1
+          -ProjectRoot ./.release-source
+
+      - name: Attach the ZIP to the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          $assets = @(Get-ChildItem -Path ./release-assets -Filter "*.zip" -File)
+          if ($assets.Count -ne 1) {
+              throw "Expected exactly one release asset, but found $($assets.Count)."
+          }
+
+          gh release upload $env:RELEASE_TAG $assets[0].FullName --clobber
+          if ($LASTEXITCODE -ne 0) {
+              throw "Uploading the release asset failed with exit code $LASTEXITCODE."
+          }
+
+      - name: Update pluginmaster.json
+        shell: pwsh
+        run: >-
+          ./.github/scripts/update-pluginmaster.ps1
+          -ProjectRoot ./.release-source
+          -ReleasedAt '${{ github.event.release.published_at }}'
+
+      - name: Commit the updated manifest
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if git diff --quiet -- pluginmaster.json; then
+            echo "pluginmaster.json is already current."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pluginmaster.json
+          git commit -m "Update pluginmaster.json for ${RELEASE_TAG}"
+          git push
