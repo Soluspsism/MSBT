@@ -13,7 +13,7 @@ namespace MSBT;
 
 internal sealed unsafe partial class CombatParser
 {
-    private void AddToScreenLogWithScreenLogKindDetour(Character* target, Character* source, FlyTextKind logKind, byte option, byte actionKind, int actionId, int val1, int val2, int val3, int val4)
+    private void AddToScreenLogWithScreenLogKindDetour(Character* target, Character* source, FlyTextKind logKind, byte option, byte actionKind, uint actionId, int value1, int value2, int value3)
     {
         try
         {
@@ -41,22 +41,21 @@ internal sealed unsafe partial class CombatParser
                                  option == 0 &&
                                  actionKind == 0 &&
                                  actionId == 0 &&
-                                 val1 > 0 &&
-                                 val2 == 0 &&
-                                 val3 is >= 0 and <= 3 &&
-                                 val4 == 0 &&
+                                 value1 > 0 &&
+                                 value2 == 0 &&
+                                 value3 is >= 0 and <= 3 &&
                                  target == source;
             HotDotContext? hotDot = ActiveHotDot;
             bool hasHotDotContext = isPeriodicDot &&
                                     hotDot is { TickMode: 3 } context &&
                                     context.Target == target &&
-                                    context.Value == (uint)val1;
+                                    context.Value == (uint)value1;
 
-            int value = val1;
-            if (val1 == 0 && !isDamage && !isInvulnOrMiss)
+            int value = value1;
+            if (value1 == 0 && !isDamage && !isInvulnOrMiss)
             {
-                value = val2;
-                if (value <= 0) value = val3;
+                value = value2;
+                if (value <= 0) value = value3;
             }
 
             bool isAbsorb = false;
@@ -123,7 +122,7 @@ internal sealed unsafe partial class CombatParser
             if (isMe) dalTarget = localPlayerSafe as Dalamud.Game.ClientState.Objects.Types.IBattleChara;
             else if (isMyTarget) dalTarget = Service.TargetManager.Target as Dalamud.Game.ClientState.Objects.Types.IBattleChara;
 
-            bool isPureAutoAttack = actionId is 7 or 8 || (isAutoAttackKind && !isPeriodicDot && val2 == 0);
+            bool isPureAutoAttack = actionId is 7 or 8 || (isAutoAttackKind && !isPeriodicDot && value2 == 0);
 
             uint currentSkillId = 0;
             if (hasHotDotContext)
@@ -132,7 +131,7 @@ internal sealed unsafe partial class CombatParser
             }
             else if (!isPureAutoAttack)
             {
-                currentSkillId = (uint)(isStatus ? val1 : actionId);
+                currentSkillId = isStatus ? (uint)value1 : actionId;
             }
 
             if (currentSkillId > 0 && plugin.Configuration.BlacklistedSkillIds.Contains(currentSkillId)) goto OriginalCall;
@@ -208,7 +207,7 @@ internal sealed unsafe partial class CombatParser
             int finalDmgType = 1;
             if (isDamage)
             {
-                if (isPeriodicDot) finalDmgType = Math.Max(1, val3);
+                if (isPeriodicDot) finalDmgType = Math.Max(1, value3);
                 else if (option == 2) finalDmgType = 2;
                 else if (option == 3 || option == 4) finalDmgType = 3;
                 else if (cachedDmgType > 1) finalDmgType = cachedDmgType;
@@ -422,7 +421,7 @@ internal sealed unsafe partial class CombatParser
                     bool treatAsCritStream = finalIsCrit || (isBigHit && ch.BigHitActsAsCrit);
                     bool isCritStream = treatAsCritStream && ch.CritBehavior != 0 && !isAlertEvent && !isIncStatusEvent && !isOutStatusEvent;
 
-                    float stackOffset = plugin.Renderer.GetSpawnOffsetAndBump(ch, scale, isCritStream);
+                    float stackOffset = plugin.Renderer.GetSpawnOffset(ch, scale, isCritStream);
 
                     bool needsDurationCheck = false;
                     if (isStatus && !isFading && currentSkillId > 0 && ch.ShowStatusDuration && statusDuration == 0f)
@@ -434,7 +433,7 @@ internal sealed unsafe partial class CombatParser
                     baseDamageText ??= "";
                     formattedName ??= "";
 
-                    node.Init(finalDamageText, baseDamageText, 0f, stackOffset, finalIsCrit, finalIsDH, isHeal,
+                    node.Init(finalDamageText, baseDamageText, stackOffset, finalIsCrit, finalIsDH, isHeal,
                               isTextOnly, isMpEvent, isAlertEvent, ch, finalIcon, value, mergeId, formattedName,
                               needsDurationCheck, currentSkillId, target->GameObject.EntityId, 0f, 0f, finalDmgType);
 
@@ -447,7 +446,6 @@ internal sealed unsafe partial class CombatParser
         catch (Exception ex) { Service.Log.Error(ex, "Error in Detour"); }
 
     OriginalCall:
-        screenLogHook!.Original(target, source, logKind, option, actionKind, actionId, val1, val2, val3, val4);
+        screenLogHook!.Original(target, source, logKind, option, actionKind, actionId, value1, value2, value3);
     }
 }
-

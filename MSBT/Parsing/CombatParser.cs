@@ -47,7 +47,7 @@ internal sealed unsafe partial class CombatParser : IDisposable
     }
 
     private readonly Plugin plugin;
-    private delegate void AddToScreenLogWithScreenLogKindDelegate(Character* target, Character* source, FlyTextKind logKind, byte option, byte actionKind, int actionId, int val1, int val2, int val3, int val4);
+    private delegate void AddToScreenLogWithScreenLogKindDelegate(Character* target, Character* source, FlyTextKind logKind, byte option, byte actionKind, uint actionId, int value1, int value2, int value3);
     private delegate void ProcessHotDotDelegate(StatusManager* statusManager, Character* target, uint statusId, int tickMode, uint value, uint sourceEntityId, int damageType);
     private readonly Hook<AddToScreenLogWithScreenLogKindDelegate>? screenLogHook;
     private readonly Hook<ProcessHotDotDelegate>? processHotDotHook;
@@ -356,13 +356,10 @@ internal sealed unsafe partial class CombatParser : IDisposable
 
             lock (plugin.TextNodesGate)
             {
-                float stackOffset = plugin.Renderer.GetSpawnOffsetAndBump(ch, ch.NormalScale, false);
-                float tX = 0f; float tY = 0f;
-                if (ch.Direction == ScrollDirection.Left || ch.Direction == ScrollDirection.Right) tX = stackOffset;
-                else tY = stackOffset;
+                float stackOffset = plugin.Renderer.GetSpawnOffset(ch, ch.NormalScale, false);
 
                 var node = plugin.AcquireTextNode();
-                node.Init(text ?? "", text ?? "", tY, tX, false, false, false, true, false, true, ch, 0, 0, uint.MaxValue, "", false, 0, 0, 0f, 0f, 0);
+                node.Init(text ?? "", text ?? "", stackOffset, false, false, false, true, false, true, ch, 0, 0, uint.MaxValue, "", false, 0, 0, 0f, 0f, 0);
             }
 
             if (ch.AlertSound > 0)
@@ -374,4 +371,3 @@ internal sealed unsafe partial class CombatParser : IDisposable
         }
     }
 }
-
