@@ -41,7 +41,7 @@ jobs:
       - name: Build the release ZIP
         shell: pwsh
         run: >-
-          ./.github/scripts/build-release.ps1
+          ./.release-source/.github/scripts/build-release.ps1
           -ProjectRoot ./.release-source
 
       - name: Attach the ZIP to the release
@@ -63,8 +63,9 @@ jobs:
       - name: Update pluginmaster.json
         shell: pwsh
         run: >-
-          ./.github/scripts/update-pluginmaster.ps1
+          ./.release-source/.github/scripts/update-pluginmaster.ps1
           -ProjectRoot ./.release-source
+          -ManifestPath ./pluginmaster.json
           -ReleasedAt '${{ github.event.release.published_at }}'
 
       - name: Commit the updated manifest
