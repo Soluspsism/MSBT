@@ -312,7 +312,10 @@ internal sealed unsafe partial class CombatParser
 
                         if (existingNode != null)
                         {
-                            existingNode.BaseValue += value;
+                            // СУТЬ ПРАВКИ: Если галочка стоит - плюсуем. Если нет - просто оставляем старый урон.
+                            if (plugin.Configuration.SumMergedValues)
+                                existingNode.BaseValue += value;
+
                             existingNode.Hits++;
 
                             if (finalIsDH) existingNode.IsDirectHit = true;
@@ -421,7 +424,7 @@ internal sealed unsafe partial class CombatParser
                     bool treatAsCritStream = finalIsCrit || (isBigHit && ch.BigHitActsAsCrit);
                     bool isCritStream = treatAsCritStream && ch.CritBehavior != 0 && !isAlertEvent && !isIncStatusEvent && !isOutStatusEvent;
 
-                    float stackOffset = plugin.Renderer.GetSpawnOffset(ch, scale, isCritStream);
+                    float stackOffset = plugin.Renderer.GetSpawnOffsetAndBump(ch, scale, isCritStream);
 
                     bool needsDurationCheck = false;
                     if (isStatus && !isFading && currentSkillId > 0 && ch.ShowStatusDuration && statusDuration == 0f)

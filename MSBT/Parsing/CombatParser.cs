@@ -356,7 +356,7 @@ internal sealed unsafe partial class CombatParser : IDisposable
 
             lock (plugin.TextNodesGate)
             {
-                float stackOffset = plugin.Renderer.GetSpawnOffset(ch, ch.NormalScale, false);
+                float stackOffset = plugin.Renderer.GetSpawnOffsetAndBump(ch, ch.NormalScale, false);
 
                 var node = plugin.AcquireTextNode();
                 node.Init(text ?? "", text ?? "", stackOffset, false, false, false, true, false, true, ch, 0, 0, uint.MaxValue, "", false, 0, 0, 0f, 0f, 0);

@@ -81,6 +81,10 @@ internal sealed partial class ConfigWindow
                             {
                                 if (ImGui.DragFloat("Merge Window (sec)", ref window, 0.05f, 0.1f, 2.0f)) { configuration.ThrottleTimeWindow = window; configuration.Save(); }
                             }
+
+                            bool sumMerged = configuration.SumMergedValues;
+                            if (ImGui.Checkbox("Sum merged damage (e.g. 30000 x3 instead of 10000 x3)", ref sumMerged)) { configuration.SumMergedValues = sumMerged; configuration.Save(); }
+
                             ImGui.Unindent(10f);
                         }
 

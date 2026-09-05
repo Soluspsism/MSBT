@@ -199,10 +199,12 @@ internal sealed partial class ConfigWindow
                         if (ImGui.Combo("Anchor Alignment", ref align, alignNames, alignNames.Length)) { ch.Alignment = (TextAlignment)align; changed = true; }
 
                         float cNorm = ch.NormalScale; if (ImGui.DragFloat("Base Scale", ref cNorm, 0.05f, 0.1f, 5.0f)) { ch.NormalScale = cNorm; changed = true; }
+                        float cNormSpc = ch.NormalSpacing; if (ImGui.DragFloat("Base Spacing", ref cNormSpc, 1f, 0f, 300f)) { ch.NormalSpacing = cNormSpc; changed = true; }
 
                         if (!isTracker && !isOverlay)
                         {
                             float cCrit = ch.CritScale; if (ImGui.DragFloat("Crit Scale", ref cCrit, 0.05f, 0.1f, 10.0f)) { ch.CritScale = cCrit; changed = true; }
+                            float cCritSpc = ch.CritSpacing; if (ImGui.DragFloat("Crit Spacing", ref cCritSpc, 1f, 0f, 300f)) { ch.CritSpacing = cCritSpc; changed = true; }
                         }
 
                         float cIcon = ch.IconScale; if (ImGui.DragFloat("Extra Icon Scale", ref cIcon, 0.05f, 0.1f, 5.0f)) { ch.IconScale = cIcon; changed = true; }

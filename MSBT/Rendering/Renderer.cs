@@ -71,25 +71,36 @@ internal sealed partial class Renderer
         return isStaticMode ? 1 : 0;
     }
 
-    internal float GetSpawnOffset(DisplayChannel ch, float scale, bool isCritStream)
+    internal float GetSpawnOffsetAndBump(DisplayChannel ch, float scale, bool isCritStream)
     {
         if (ch.Mode == ChannelMode.Tracker || ch.Mode == ChannelMode.Overlay) return 0f;
 
-        float spacing = isCritStream ? (75f * scale) : (45f * scale);
+        float spacing = isCritStream ? (ch.CritSpacing * scale) : (ch.NormalSpacing * scale);
         int myLane = GetLaneFromParams(ch, isCritStream);
 
-        for (int i = plugin.CustomTexts.Count - 1; i >= 0; i--)
+        if (myLane == 0)
         {
-            CustomSCTNode node = plugin.CustomTexts[i];
-            if (!node.IsActive || node.Channel != ch || GetNodeLane(node, ch) != myLane)
-                continue;
+            for (int i = plugin.CustomTexts.Count - 1; i >= 0; i--)
+            {
+                CustomSCTNode node = plugin.CustomTexts[i];
+                if (!node.IsActive || node.Channel != ch || GetNodeLane(node, ch) != 0)
+                    continue;
 
-            float lastTravel = node.TargetXOffset + (myLane == 0 ? node.Timer * ch.Speed : node.DistanceTraveled);
-            if (lastTravel < spacing) return lastTravel - spacing;
-            break;
+                float lastTravel = (node.Timer * ch.Speed) + node.TargetXOffset;
+                if (lastTravel < spacing) return lastTravel - spacing;
+                break;
+            }
+            return 0f;
         }
-
-        return 0f;
+        else
+        {
+            foreach (var node in plugin.CustomTexts)
+            {
+                if (node.IsActive && node.Channel == ch && GetNodeLane(node, ch) == myLane)
+                    node.TargetYOffset += spacing;
+            }
+            return 0f;
+        }
     }
 
     private bool IsNodeVisible(CustomSCTNode node, DisplayChannel ch)
@@ -119,7 +130,7 @@ internal sealed partial class Renderer
             var node = plugin.AcquireTextNode();
             string name = string.IsNullOrEmpty(trg.CustomText) ? plugin.Parser.GetSkillName(trg.StatusId) : trg.CustomText;
             uint icon = plugin.Parser.GetIconId(trg.StatusId);
-            node.Init(name ?? "", name ?? "", 0, false, false, false, true, false, true, ch, icon, 0, trg.StatusId, name ?? "", false, trg.StatusId, targetId, maxDur, remTime, 0);
+            node.Init(name ?? "", name ?? "", 0f, false, false, false, true, false, true, ch, icon, 0, trg.StatusId, name ?? "", false, trg.StatusId, targetId, maxDur, remTime, 0);
         }
     }
 
@@ -133,7 +144,7 @@ internal sealed partial class Renderer
             var node = plugin.AcquireTextNode();
             string name = plugin.Parser.GetSkillName(statusId);
             uint icon = plugin.Parser.GetIconId(statusId);
-            node.Init(name ?? "", name ?? "", 0, false, false, false, true, false, false, ch, icon, 0, statusId, name ?? "", false, statusId, targetId, maxDur, remTime, 0);
+            node.Init(name ?? "", name ?? "", 0f, false, false, false, true, false, false, ch, icon, 0, statusId, name ?? "", false, statusId, targetId, maxDur, remTime, 0);
         }
     }
 
@@ -305,7 +316,7 @@ internal sealed partial class Renderer
             bool treatAsCrit = isCrit || ch.BigHitActsAsCrit;
             bool isCritStream = treatAsCrit && critBehavior != 0 && !isAlert && ch.Mode == ChannelMode.Scrolling;
 
-            float spawnOffset = GetSpawnOffset(ch, isCritStream ? ch.CritScale : ch.NormalScale, isCritStream);
+            float spawnOffset = GetSpawnOffsetAndBump(ch, isCritStream ? ch.CritScale : ch.NormalScale, isCritStream);
 
             var node = plugin.AcquireTextNode();
 
@@ -321,7 +332,7 @@ internal sealed partial class Renderer
 
         lock (plugin.TextNodesGate)
         {
-            float spawnOffset = GetSpawnOffset(ch, ch.NormalScale, false);
+            float spawnOffset = GetSpawnOffsetAndBump(ch, ch.NormalScale, false);
 
             var node = plugin.AcquireTextNode();
 
