@@ -144,7 +144,6 @@ internal sealed partial class Renderer
                         float currentBump = 0f;
                         if (lane != 0)
                         {
-                            // ВОЗВРАЩАЕМ АНИМАЦИЮ ЭСКАЛАТОРА
                             node.DistanceTraveled += (node.TargetYOffset - node.DistanceTraveled) * globalLerpFactor;
                             currentBump = node.DistanceTraveled;
                         }

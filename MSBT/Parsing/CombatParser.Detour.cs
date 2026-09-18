@@ -312,7 +312,6 @@ internal sealed unsafe partial class CombatParser
 
                         if (existingNode != null)
                         {
-                            // СУТЬ ПРАВКИ: Если галочка стоит - плюсуем. Если нет - просто оставляем старый урон.
                             if (plugin.Configuration.SumMergedValues)
                                 existingNode.BaseValue += value;
 
