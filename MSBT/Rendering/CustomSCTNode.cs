@@ -17,7 +17,7 @@ internal sealed class CustomSCTNode
     public float DistanceTraveled = 0f;
 
     public float TargetXOffset;
-    public float TargetYOffset; // Наш эскалатор для критов
+    public float TargetYOffset;
 
     public bool IsCrit;
     public bool IsDirectHit;
@@ -57,11 +57,11 @@ internal sealed class CustomSCTNode
         BaseText = baseText;
         Timer = 0f;
 
-        // --- ОБЕЗВРЕЖИВАЕМ БОМБУ ПУЛА ---
+       
         DistanceTraveled = 0f;
         TargetXOffset = targetX;
         TargetYOffset = 0f;
-        // --------------------------------
+        
 
         IsCrit = isCrit;
         IsDirectHit = isDirectHit;
@@ -93,7 +93,7 @@ internal sealed class CustomSCTNode
         SkillName = string.Empty;
         Channel = null!;
 
-        // Дополнительная зачистка на всякий случай
+       
         TargetYOffset = 0f;
         DistanceTraveled = 0f;
     }

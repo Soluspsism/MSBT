@@ -70,7 +70,7 @@ public class DisplayChannel
     public float IconScale { get; set; } = 1.0f;
     public float TrackerTimerScale { get; set; } = 0.8f;
 
-    // --- ТЕ САМЫЕ ПЕРЕМЕННЫЕ ОТСТУПОВ ---
+  
     public float NormalSpacing { get; set; } = 30f;
     public float CritSpacing { get; set; } = 40f;
 
@@ -149,7 +149,7 @@ public class Configuration : IPluginConfiguration
     public bool EnableThrottling { get; set; } = true;
     public float ThrottleTimeWindow { get; set; } = 0.5f;
 
-    // --- ГАЛОЧКА ДЛЯ СУММИРОВАНИЯ АОЕ ---
+
     public bool SumMergedValues { get; set; } = false;
 
     public bool DebugShowIds { get; set; } = false;
